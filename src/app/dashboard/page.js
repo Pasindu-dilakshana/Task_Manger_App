@@ -1,6 +1,8 @@
 "use client";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import Sidebar from "@/components/Sidebar";
+import { useAuth } from "@/lib/useAuth";
 
 const getTodayDateString = () => {
   return new Date().toLocaleDateString('en-CA'); 
@@ -16,7 +18,9 @@ const getDisplayDate = (dateString) => {
 };
 
 export default function Dashboard() {
+  const { user, isLoggedIn, authChecked, logout } = useAuth();
   const [tasks, setTasks] = useState([]);
+  const [tasksLoaded, setTasksLoaded] = useState(false);
   const [newTask, setNewTask] = useState("");
   const [darkMode, setDarkMode] = useState(false);
   const [greeting, setGreeting] = useState("Welcome back");
@@ -26,17 +30,17 @@ export default function Dashboard() {
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState("");
   const [selectedDate, setSelectedDate] = useState(getTodayDateString());
+  const dateInputRef = useRef(null);
 
-  const [isLoggedIn, setIsLoggedIn] = useState(false); 
-
-  const fetchTasks = async () => {
-    if (isLoggedIn) {
+  const fetchTasks = async (loggedIn) => {
+    if (loggedIn) {
       try {
         const response = await fetch("/api/tasks");
+        if (!response.ok) throw new Error("Failed to fetch tasks");
         const data = await response.json();
         const formattedTasks = data.map(task => ({
           id: task._id,
-          text: task.title || "Untitled", 
+          text: task.text || "Untitled",
           completed: task.completed || false,
           date: task.date || getTodayDateString(),
           time: task.time || "12:00 PM"
@@ -44,18 +48,39 @@ export default function Dashboard() {
         setTasks(formattedTasks);
       } catch (error) {
         console.error("Failed to fetch tasks", error);
+      } finally {
+        setTasksLoaded(true);
       }
     } else {
       const localTasks = localStorage.getItem("taskflow_guest_tasks");
       if (localTasks) {
         setTasks(JSON.parse(localTasks));
       }
+      setTasksLoaded(true);
     }
   };
 
+  // Load the right set of tasks once we know whether the user is logged in.
   useEffect(() => {
-    fetchTasks();
+    if (!authChecked) return;
+    fetchTasks(isLoggedIn);
+  }, [authChecked, isLoggedIn]);
 
+  // Dark mode preference persists across pages/reloads.
+  useEffect(() => {
+    const saved = localStorage.getItem("taskflow_dark_mode");
+    if (saved !== null) setDarkMode(saved === "true");
+  }, []);
+
+  const toggleDarkMode = () => {
+    setDarkMode((prev) => {
+      const next = !prev;
+      localStorage.setItem("taskflow_dark_mode", String(next));
+      return next;
+    });
+  };
+
+  useEffect(() => {
     const hour = new Date().getHours();
     if (hour < 12) setGreeting("Good Morning");
     else if (hour < 18) setGreeting("Good Afternoon");
@@ -63,7 +88,22 @@ export default function Dashboard() {
 
     const options = { weekday: 'long', month: 'long', day: 'numeric' };
     setHeaderDate(new Date().toLocaleDateString('en-US', options));
-  }, [isLoggedIn]); 
+  }, []);
+
+  const openDatePicker = () => {
+    const el = dateInputRef.current;
+    if (!el) return;
+    if (typeof el.showPicker === "function") {
+      try {
+        el.showPicker();
+        return;
+      } catch (err) {
+        // showPicker can throw if not called from a direct user gesture in some browsers; fall back below.
+      }
+    }
+    el.focus();
+    el.click();
+  };
 
   const addTask = async (e) => {
     e.preventDefault();
@@ -81,12 +121,16 @@ export default function Dashboard() {
     };
 
     if (isLoggedIn) {
-      await fetch("/api/tasks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: newTaskObj.text, date: newTaskObj.date, time: newTaskObj.time }),
-      });
-      fetchTasks(); 
+      try {
+        await fetch("/api/tasks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: newTaskObj.text, date: newTaskObj.date, time: newTaskObj.time }),
+        });
+        await fetchTasks(true);
+      } catch (error) {
+        console.error("Failed to add task", error);
+      }
     } else {
       const updatedTasks = [newTaskObj, ...tasks];
       setTasks(updatedTasks);
@@ -95,16 +139,42 @@ export default function Dashboard() {
     setNewTask("");
   };
 
-  const toggleTask = (id) => {
-    const updatedTasks = tasks.map((t) => t.id === id ? { ...t, completed: !t.completed } : t);
+  const toggleTask = async (id) => {
+    const target = tasks.find((t) => t.id === id);
+    if (!target) return;
+    const newCompleted = !target.completed;
+
+    const updatedTasks = tasks.map((t) => t.id === id ? { ...t, completed: newCompleted } : t);
     setTasks(updatedTasks);
-    if (!isLoggedIn) localStorage.setItem("taskflow_guest_tasks", JSON.stringify(updatedTasks));
+
+    if (isLoggedIn) {
+      try {
+        await fetch("/api/tasks", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, completed: newCompleted }),
+        });
+      } catch (error) {
+        console.error("Failed to update task", error);
+      }
+    } else {
+      localStorage.setItem("taskflow_guest_tasks", JSON.stringify(updatedTasks));
+    }
   };
 
-  const deleteTask = (id) => {
+  const deleteTask = async (id) => {
     const updatedTasks = tasks.filter((t) => t.id !== id);
     setTasks(updatedTasks);
-    if (!isLoggedIn) localStorage.setItem("taskflow_guest_tasks", JSON.stringify(updatedTasks));
+
+    if (isLoggedIn) {
+      try {
+        await fetch(`/api/tasks?id=${id}`, { method: "DELETE" });
+      } catch (error) {
+        console.error("Failed to delete task", error);
+      }
+    } else {
+      localStorage.setItem("taskflow_guest_tasks", JSON.stringify(updatedTasks));
+    }
   };
 
   const startEditing = (task) => {
@@ -112,11 +182,24 @@ export default function Dashboard() {
     setEditText(task.text);
   };
 
-  const saveEdit = (id) => {
+  const saveEdit = async (id) => {
     const updatedTasks = tasks.map((t) => t.id === id ? { ...t, text: editText } : t);
     setTasks(updatedTasks);
-    if (!isLoggedIn) localStorage.setItem("taskflow_guest_tasks", JSON.stringify(updatedTasks));
     setEditingId(null);
+
+    if (isLoggedIn) {
+      try {
+        await fetch("/api/tasks", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, text: editText }),
+        });
+      } catch (error) {
+        console.error("Failed to save edit", error);
+      }
+    } else {
+      localStorage.setItem("taskflow_guest_tasks", JSON.stringify(updatedTasks));
+    }
   };
 
   const tasksForSelectedDate = tasks.filter(task => task.date === selectedDate);
@@ -130,38 +213,18 @@ export default function Dashboard() {
     return true;
   });
 
+  if (!authChecked || !tasksLoaded) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
+        <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
   return (
     <div className={`min-h-screen flex font-sans selection:bg-indigo-500 selection:text-white transition-colors duration-500 ${darkMode ? "bg-[#0F172A] text-slate-100" : "bg-[#F8FAFC] text-slate-800"}`}>
       
-      {/* Sidebar */}
-      <aside className="w-[280px] bg-[#0B1121] hidden md:flex flex-col relative overflow-hidden shrink-0 shadow-2xl">
-        <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-indigo-500/20 to-transparent pointer-events-none"></div>
-        <div className="h-24 flex items-center px-8 relative z-10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/30 border border-white/10">
-              <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
-            </div>
-            <h1 className="text-2xl font-black text-white tracking-tight">TaskFlow<span className="text-indigo-400">.</span></h1>
-          </div>
-        </div>
-
-        <nav className="flex-1 px-4 py-6 space-y-2 relative z-10">
-          <a href="#" className="flex items-center gap-4 bg-gradient-to-r from-indigo-500/10 to-transparent text-indigo-400 px-4 py-3.5 rounded-2xl font-bold border border-indigo-500/20 transition-all">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
-            Dashboard
-          </a>
-          <a href="#" className="flex items-center gap-4 text-slate-400 hover:text-white hover:bg-white/5 px-4 py-3.5 rounded-2xl font-medium transition-all">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-            Settings
-          </a>
-        </nav>
-        <div className="p-6 relative z-10">
-          <Link href="/" className="flex items-center gap-4 text-slate-400 hover:text-red-400 hover:bg-red-400/10 px-4 py-3.5 rounded-2xl font-medium transition-all group">
-            <svg className="w-5 h-5 group-hover:-translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-            Log out
-          </Link>
-        </div>
-      </aside>
+      <Sidebar active="dashboard" isLoggedIn={isLoggedIn} user={user} onLogout={logout} />
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
@@ -171,7 +234,7 @@ export default function Dashboard() {
           <div>
             <h2 className="text-3xl font-extrabold tracking-tight flex items-center gap-2">
               <span className={`text-transparent bg-clip-text bg-gradient-to-r ${darkMode ? "from-white to-slate-400" : "from-slate-800 to-slate-500"}`}>
-                {greeting}, {isLoggedIn ? "John" : "Guest"}!
+                {greeting}, {isLoggedIn ? user?.firstName : "Guest"}!
               </span>
               <span className="text-3xl animate-wave origin-bottom-right">👋</span>
             </h2>
@@ -181,7 +244,7 @@ export default function Dashboard() {
           </div>
           
           <div className="flex items-center gap-5">
-            <button onClick={() => setDarkMode(!darkMode)} className={`relative p-2.5 rounded-full shadow-sm hover:shadow-md border transition-colors ${darkMode ? "bg-slate-800 border-slate-700 text-slate-300 hover:text-indigo-400" : "bg-white border-slate-200 text-slate-500 hover:text-indigo-600"}`}>
+            <button onClick={toggleDarkMode} className={`relative p-2.5 rounded-full shadow-sm hover:shadow-md border transition-colors ${darkMode ? "bg-slate-800 border-slate-700 text-slate-300 hover:text-indigo-400" : "bg-white border-slate-200 text-slate-500 hover:text-indigo-600"}`}>
               {darkMode ? (
                 <svg className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" /></svg>
               ) : (
@@ -189,7 +252,7 @@ export default function Dashboard() {
               )}
             </button>
             <div className={`w-12 h-12 rounded-full bg-gradient-to-tr from-indigo-600 to-fuchsia-600 text-white flex items-center justify-center font-bold text-lg shadow-lg shadow-indigo-500/30 ring-4 transition-transform hover:scale-105 ${darkMode ? "ring-slate-800" : "ring-white"}`}>
-              {isLoggedIn ? "JD" : "G"}
+              {isLoggedIn ? `${user?.firstName?.[0] || ""}${user?.lastName?.[0] || ""}`.toUpperCase() : "G"}
             </div>
           </div>
         </header>
@@ -219,13 +282,26 @@ export default function Dashboard() {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
               
               {/* 🔥 BEAUTIFUL INTERACTIVE DATE CARD 🔥 */}
-              <div className="relative group cursor-pointer inline-block">
+              <div
+                className="relative group cursor-pointer inline-block"
+                onClick={openDatePicker}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    openDatePicker();
+                  }
+                }}
+              >
                 <input
+                  ref={dateInputRef}
                   type="date"
                   value={selectedDate}
                   onChange={(e) => setSelectedDate(e.target.value)}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                  title="Choose a date"
+                  className="absolute inset-0 w-full h-full opacity-0 pointer-events-none"
+                  tabIndex={-1}
+                  aria-hidden="true"
                 />
                 <div className={`flex items-center gap-4 px-6 py-4 rounded-[1.5rem] transition-all duration-300 border ${
                   darkMode

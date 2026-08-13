@@ -1,13 +1,64 @@
 "use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 
 export default function RegisterPage() {
+  const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
+  const [formData, setFormData] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+  });
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    if (formData.password !== formData.confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+    if (!agreedToTerms) {
+      setError("Please agree to the Terms of Service and Privacy Policy.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || "Something went wrong. Please try again.");
+        return;
+      }
+
+      router.push("/dashboard");
+    } catch (err) {
+      setError("Could not reach the server. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex bg-white">
@@ -24,7 +75,7 @@ export default function RegisterPage() {
           </svg>
           
           <h2 className="text-4xl font-bold mb-6 leading-tight">
-            "TaskFlow completely transformed how our team manages projects. It's clean, fast, and incredibly reliable."
+            &ldquo;TaskFlow completely transformed how our team manages projects. It&apos;s clean, fast, and incredibly reliable.&rdquo;
           </h2>
           <p className="text-blue-200 text-lg font-medium mb-10">— Sarah Jenkins, Product Manager at TechCorp</p>
           
@@ -81,43 +132,49 @@ export default function RegisterPage() {
             <span className="bg-white px-4 text-xs font-semibold text-gray-400 absolute tracking-wider uppercase">Or continue with</span>
           </div>
 
-          <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+          <form className="space-y-4" onSubmit={handleSubmit}>
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 text-sm font-medium px-4 py-3 rounded-xl">
+                {error}
+              </div>
+            )}
+
             <div className="flex gap-4">
               <div className="w-1/2">
                 <label className="block text-sm font-semibold text-gray-700 mb-1">First Name</label>
-                <input type="text" className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="John" />
+                <input required name="firstName" value={formData.firstName} onChange={handleChange} type="text" className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="John" />
               </div>
               <div className="w-1/2">
                 <label className="block text-sm font-semibold text-gray-700 mb-1">Last Name</label>
-                <input type="text" className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="Doe" />
+                <input required name="lastName" value={formData.lastName} onChange={handleChange} type="text" className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="Doe" />
               </div>
             </div>
 
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">Email Address</label>
-              <input type="email" className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="john@example.com" />
+              <input required name="email" value={formData.email} onChange={handleChange} type="email" className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="john@example.com" />
             </div>
 
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">Password</label>
-              <input type="password" className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="Create a strong password" />
+              <input required minLength={6} name="password" value={formData.password} onChange={handleChange} type="password" className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="Create a strong password" />
             </div>
 
             {/* අලුතින් එකතු කරපු Confirm Password කොටස */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">Confirm Password</label>
-              <input type="password" className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="Re-enter your password" />
+              <input required name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} type="password" className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="Re-enter your password" />
             </div>
 
             <div className="flex items-start mt-4">
-              <input type="checkbox" id="terms" className="mt-1 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer" />
+              <input checked={agreedToTerms} onChange={(e) => setAgreedToTerms(e.target.checked)} type="checkbox" id="terms" className="mt-1 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer" />
               <label htmlFor="terms" className="ml-2 text-sm text-gray-600 cursor-pointer">
                 I agree to the <a href="#" className="text-blue-600 font-medium hover:underline">Terms of Service</a> and <a href="#" className="text-blue-600 font-medium hover:underline">Privacy Policy</a>.
               </label>
             </div>
 
-            <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition shadow-lg hover:shadow-blue-500/30 hover:-translate-y-0.5 mt-6">
-              Create Account
+            <button type="submit" disabled={isSubmitting} className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition shadow-lg hover:shadow-blue-500/30 hover:-translate-y-0.5 mt-6 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0">
+              {isSubmitting ? "Creating account..." : "Create Account"}
             </button>
           </form>
 

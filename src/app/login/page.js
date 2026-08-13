@@ -1,13 +1,45 @@
 "use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 
 export default function LoginPage() {
+  const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || "Something went wrong. Please try again.");
+        return;
+      }
+
+      router.push("/dashboard");
+    } catch (err) {
+      setError("Could not reach the server. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex bg-white">
@@ -23,7 +55,7 @@ export default function LoginPage() {
           </svg>
           
           <h2 className="text-4xl font-bold mb-6 leading-tight">
-            "Welcome back to TaskFlow. Let's pick up right where you left off and conquer the day."
+            &ldquo;Welcome back to TaskFlow. Let&apos;s pick up right where you left off and conquer the day.&rdquo;
           </h2>
           <p className="text-blue-200 text-lg font-medium mb-10">— The TaskFlow Team</p>
           
@@ -76,11 +108,17 @@ export default function LoginPage() {
             <span className="bg-white px-4 text-xs font-semibold text-gray-400 absolute tracking-wider uppercase">Or login with email</span>
           </div>
 
-          <form className="space-y-5" onSubmit={(e) => e.preventDefault()}>
-            
+          <form className="space-y-5" onSubmit={handleSubmit}>
+
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 text-sm font-medium px-4 py-3 rounded-xl">
+                {error}
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">Email Address</label>
-              <input type="email" className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="john@example.com" />
+              <input required value={email} onChange={(e) => setEmail(e.target.value)} type="email" className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="john@example.com" />
             </div>
 
             <div>
@@ -88,7 +126,7 @@ export default function LoginPage() {
                 <label className="block text-sm font-semibold text-gray-700">Password</label>
                 <a href="#" className="text-sm text-blue-600 hover:underline font-semibold">Forgot password?</a>
               </div>
-              <input type="password" className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="••••••••" />
+              <input required value={password} onChange={(e) => setPassword(e.target.value)} type="password" className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="••••••••" />
             </div>
             
             <div className="flex items-center mt-2">
@@ -98,13 +136,13 @@ export default function LoginPage() {
               </label>
             </div>
 
-            <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition shadow-lg hover:shadow-blue-500/30 hover:-translate-y-0.5 mt-6">
-              Sign In
+            <button type="submit" disabled={isSubmitting} className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition shadow-lg hover:shadow-blue-500/30 hover:-translate-y-0.5 mt-6 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0">
+              {isSubmitting ? "Signing in..." : "Sign In"}
             </button>
           </form>
 
           <p className="text-center text-sm text-gray-600 mt-8">
-            Don't have an account? <Link href="/register" className="text-blue-600 font-bold hover:underline">Sign up</Link>
+            Don&apos;t have an account? <Link href="/register" className="text-blue-600 font-bold hover:underline">Sign up</Link>
           </p>
         </div>
       </div>
