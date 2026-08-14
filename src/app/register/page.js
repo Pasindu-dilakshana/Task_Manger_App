@@ -77,7 +77,7 @@ export default function RegisterPage() {
           <h2 className="text-4xl font-bold mb-6 leading-tight">
             &ldquo;TaskFlow completely transformed how our team manages projects. It&apos;s clean, fast, and incredibly reliable.&rdquo;
           </h2>
-          <p className="text-blue-200 text-lg font-medium mb-10">— Sarah Jenkins, Product Manager at TechCorp</p>
+          <p className="text-blue-200 text-lg font-medium mb-10">— Pasindu dilakshana, fullstack developer at ceybrainCorp</p>
           
           {/* Abstract Task UI element */}
           <div className="bg-white/10 p-6 rounded-2xl backdrop-blur-md border border-white/20 shadow-2xl">
