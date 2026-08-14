@@ -44,7 +44,6 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex bg-white">
       
-      {/* Left Side: Branding (Register එකේ වගේමයි, පොඩි වෙනසයි තියෙන්නේ) */}
       <div className="hidden lg:flex w-1/2 bg-blue-600 items-center justify-center p-12 relative overflow-hidden">
         <div className="absolute top-[-10%] right-[-10%] w-96 h-96 bg-blue-500 rounded-full blur-3xl opacity-60"></div>
         <div className="absolute bottom-[-10%] left-[-10%] w-96 h-96 bg-blue-800 rounded-full blur-3xl opacity-40"></div>
@@ -57,7 +56,7 @@ export default function LoginPage() {
           <h2 className="text-4xl font-bold mb-6 leading-tight">
             &ldquo;Welcome back to TaskFlow. Let&apos;s pick up right where you left off and conquer the day.&rdquo;
           </h2>
-          <p className="text-blue-200 text-lg font-medium mb-10">— The TaskFlow Team</p>
+          <p className="text-blue-200 text-lg font-medium mb-10">— The ceybrain Team</p>
           
           <div className="bg-white/10 p-6 rounded-2xl backdrop-blur-md border border-white/20 shadow-2xl">
             <div className="flex items-center gap-4 mb-4">
@@ -72,7 +71,6 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* Right Side: Login Form */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12 relative overflow-y-auto">
         <div className={`max-w-md w-full transition-all duration-1000 ${isMounted ? "translate-y-0 opacity-100" : "translate-y-12 opacity-0"}`}>
           
