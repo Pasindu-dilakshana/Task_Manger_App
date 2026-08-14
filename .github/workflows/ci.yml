@@ -30,9 +30,6 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          # Dummy values so the build step (which loads env vars but doesn't
-          # actually connect to Mongo at build time) doesn't fail on missing
-          # required env vars. Real values live in Vercel/Amplify's own
-          # environment variable settings, never in this repo.
-          MONGODB_URI: ${{ secrets.MONGODB_URI || 'mongodb://placeholder' }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET || 'placeholder-build-time-secret' }}
+
+          MONGODB_URI: ${{ secrets.MONGODB_URI || 'mongodb://pasiya:pasindu12345@ac-njcwre8-shard-00-00.ytylznr.mongodb.net:27017,ac-njcwre8-shard-00-01.ytylznr.mongodb.net:27017,ac-njcwre8-shard-00-02.ytylznr.mongodb.net:27017/?ssl=true&replicaSet=atlas-ub889c-shard-0&authSource=admin&appName=Cluster0' }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET || 'b63a4a6f93993da8ff05b9db3cd8b47563d6aa551af98c09c15fd8e5e766dac6' }}
