@@ -1,1 +1,1 @@
-mongodb+srv://pasindu:<db_password>@cluster0.ytylznr.mongodb.net/?appName=Cluster0
+
